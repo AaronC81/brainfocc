@@ -27,9 +27,7 @@ end
 class Interpreter
   MEMORY_SIZE = 3000
 
-  LOOP_LOCK = Mutex.new
-
-  def initialize(instructions, memory, instructions_ptr = nil, memory_ptr = nil, pid = nil)
+  def initialize(instructions, memory, instructions_ptr = nil, memory_ptr = nil, pid = nil, channel = nil)
     @memory = memory
     @memory_ptr = memory_ptr || 0
 
@@ -37,6 +35,7 @@ class Interpreter
     @instructions_ptr = instructions_ptr || 0
 
     @pid = pid || 0
+    @channel = channel || 0
 
     puts "== Interpreter PID #{@pid} instantiated"
   end
@@ -104,12 +103,26 @@ class Interpreter
           @instructions_ptr + 1,
           @memory_ptr,
           forked_pid,
+          @channel,
         )
         Thread.new do
           forked_interpreter.run
         end
 
         @pid = 0
+      when '&'
+        # == Channel select ==
+        # Switches to the using the channel number at the current data byte.
+        @channel = @memory[@memory_ptr]
+      when '!'
+        # == Send ==
+        # Sends the data byte on the current channel and waits for it to be 
+        # received.
+        puts "#{@pid} sends #{@memory[@memory_ptr]} on #{@channel}"
+      when '?'
+        # == Receive ==
+        # Waits to receives a data byte from the current channel.
+        puts "#{@pid} receives from #{@channel}"
       else
         # Ignore
       end
