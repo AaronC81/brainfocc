@@ -1,15 +1,44 @@
 #!/usr/bin/env ruby
 require 'io/console'
+require 'thread'
+
+module PidController
+  @next_pid = 1
+  @new_pid_lock = Mutex.new
+
+  def self.new_pid
+    @new_pid_lock.synchronize do
+      result = @next_pid
+      @next_pid += 1
+      result
+    end
+  end
+end
+
+# 256 channels are initialized by default
+# send waits for receive and vice versa
+
+# ^ = fork: places ID in memory, first process has zero and they increment
+# & = channel select: switches to performing channel operations on the channel ID in memory
+#     each process has its own active channel ID
+# ? = receive: waits for data and writes it to memory
+# ! = send: sends the data in memory to the channel
 
 class Interpreter
-  MEMORY_SIZE = 30000
+  MEMORY_SIZE = 3000
 
-  def initialize(instructions, memory)
+  LOOP_LOCK = Mutex.new
+
+  def initialize(instructions, memory, instructions_ptr = nil, memory_ptr = nil, pid = nil)
     @memory = memory
-    @memory_ptr = 0
+    @memory_ptr = memory_ptr || 0
 
     @instructions = instructions
-    @instructions_ptr = 0
+    @instructions_ptr = instructions_ptr || 0
+
+    @pid = pid || 0
+
+    puts "== Interpreter PID #{@pid} instantiated"
   end
 
   def runtime_error(desc)
@@ -58,6 +87,29 @@ class Interpreter
             runtime_error "unmatched ]" if @instructions_ptr <= 0
           end
         end
+      when '^'
+        # == Fork ==
+        # Create an identical new interpreter. The current data byte becomes
+        # the PID of the new process for the fork, or 0 if it's the spawning
+        # process. The new interpreter will run concurrently alongside this
+        # one.
+
+        forked_pid = PidController.new_pid
+        forked_memory = @memory.clone
+        forked_memory[@memory_ptr] = forked_pid
+
+        forked_interpreter = Interpreter.new(
+          @instructions,
+          forked_memory,
+          @instructions_ptr + 1,
+          @memory_ptr,
+          forked_pid,
+        )
+        Thread.new do
+          forked_interpreter.run
+        end
+
+        @pid = 0
       else
         # Ignore
       end
@@ -67,5 +119,12 @@ class Interpreter
   end
 end
 
-interpreter = Interpreter.new(File.read(ARGV[0]), [0] * Interpreter::MEMORY_SIZE)
-interpreter.run
+interpreter = Interpreter.new(
+  File.read(ARGV[0]),
+  [0] * Interpreter::MEMORY_SIZE,
+)
+Thread.new do
+  interpreter.run
+end
+
+loop {}
