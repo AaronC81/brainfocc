@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 require 'io/console'
 require 'thread'
+require 'concurrent'
+require 'concurrent-edge'
 
 module PidController
   @next_pid = 1
@@ -26,6 +28,7 @@ end
 
 class Interpreter
   MEMORY_SIZE = 3000
+  CHANNEL_TABLE = Array.new(256) { Concurrent::Channel.new }
 
   def initialize(instructions, memory, instructions_ptr = nil, memory_ptr = nil, pid = nil, channel = nil)
     @memory = memory
@@ -118,11 +121,11 @@ class Interpreter
         # == Send ==
         # Sends the data byte on the current channel and waits for it to be 
         # received.
-        puts "#{@pid} sends #{@memory[@memory_ptr]} on #{@channel}"
+        Interpreter::CHANNEL_TABLE[@channel].put(@memory[@memory_ptr])
       when '?'
         # == Receive ==
         # Waits to receives a data byte from the current channel.
-        puts "#{@pid} receives from #{@channel}"
+        @memory[@memory_ptr] = Interpreter::CHANNEL_TABLE[@channel].take
       else
         # Ignore
       end
