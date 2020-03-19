@@ -1,64 +1,71 @@
 #!/usr/bin/env ruby
 require 'io/console'
 
-# TODO: pass values in, somehow? this should probably be an object
-def runtime_error(desc)
-  puts "Runtime error: #{desc}"
-  #puts "  at instruction #{instructions_ptr + 1}, opcode #{instructions[instructions_ptr]} (1-indexed)"
-  #puts "  at memory address #{memory_ptr}, value #{memory[memory_ptr]}"
-  exit 1
-end
+class Interpreter
+  MEMORY_SIZE = 30000
 
-MEMORY_SIZE = 30000
-memory = [0] * MEMORY_SIZE
-memory_ptr = 0
+  def initialize(instructions, memory)
+    @memory = memory
+    @memory_ptr = 0
 
-instructions = File.read(ARGV[0])
-instructions_ptr = 0
-
-loop do
-  break if instructions_ptr >= instructions.length
-
-  case instructions[instructions_ptr]
-  when '<'
-    runtime_error "cannot move off left of memory" if memory_ptr.zero?
-    memory_ptr -= 1
-  when '>'
-    runtime_error "cannot move off right of memory" if memory_ptr == MEMORY_SIZE - 1
-    memory_ptr += 1
-  when '+'
-    memory[memory_ptr] = (memory[memory_ptr] + 1) % 256
-  when '-'
-    memory[memory_ptr] = (memory[memory_ptr] - 1) % 256
-  when '.'
-    print memory[memory_ptr].chr
-  when '.'
-    memory[memory_ptr] = STDIN.getch
-    # Explicit ctrl-C check
-    exit 1 if memory[memory_ptr] == '\3'
-  when '['
-    if memory[memory_ptr].zero?
-      balance = 1
-      until balance.zero?
-        instructions_ptr += 1
-        balance -= 1 if instructions[instructions_ptr] == ']'
-        balance += 1 if instructions[instructions_ptr] == '['
-        runtime_error "unmatched [" if instructions_ptr >= instructions.length
-      end
-    end
-  when ']'
-    unless memory[memory_ptr].zero?
-      balance = 1
-      until balance.zero?
-        instructions_ptr -= 1
-        balance -= 1 if instructions[instructions_ptr] == '['
-        balance += 1 if instructions[instructions_ptr] == ']'
-        runtime_error "unmatched ]" if instructions_ptr <= 0
-      end
-    end
-  else
-    # Ignore
+    @instructions = instructions
+    @instructions_ptr = 0
   end
 
-  instructions_ptr += 1
+  def runtime_error(desc)
+    puts "Runtime error: #{desc}"
+    puts "  at instruction #{@instructions_ptr + 1}, opcode #{@instructions[@instructions_ptr]} (1-indexed)"
+    puts "  at memory address #{@memory_ptr}, value #{@memory[@memory_ptr]}"
+    exit 1
+  end
+
+  def run
+    until @instructions_ptr >= @instructions.length
+      case @instructions[@instructions_ptr]
+      when '<'
+        runtime_error "cannot move off left of memory" if @memory_ptr.zero?
+        @memory_ptr -= 1
+      when '>'
+        runtime_error "cannot move off right of memory" if @memory_ptr == Interpreter::MEMORY_SIZE - 1
+        @memory_ptr += 1
+      when '+'
+        @memory[@memory_ptr] = (@memory[@memory_ptr] + 1) % 256
+      when '-'
+        @memory[@memory_ptr] = (@memory[@memory_ptr] - 1) % 256
+      when '.'
+        print @memory[@memory_ptr].chr
+      when '.'
+        @memory[@memory_ptr] = STDIN.getch
+        # Explicit ctrl-C check
+        exit 1 if @memory[@memory_ptr] == '\3'
+      when '['
+        if @memory[@memory_ptr].zero?
+          balance = 1
+          until balance.zero?
+            @instructions_ptr += 1
+            balance -= 1 if @instructions[@instructions_ptr] == ']'
+            balance += 1 if @instructions[@instructions_ptr] == '['
+            runtime_error "unmatched [" if @instructions_ptr >= @instructions.length
+          end
+        end
+      when ']'
+        unless @memory[@memory_ptr].zero?
+          balance = 1
+          until balance.zero?
+            @instructions_ptr -= 1
+            balance -= 1 if @instructions[@instructions_ptr] == '['
+            balance += 1 if @instructions[@instructions_ptr] == ']'
+            runtime_error "unmatched ]" if @instructions_ptr <= 0
+          end
+        end
+      else
+        # Ignore
+      end
+
+      @instructions_ptr += 1
+    end
+  end
 end
+
+interpreter = Interpreter.new(File.read(ARGV[0]), [0] * Interpreter::MEMORY_SIZE)
+interpreter.run
