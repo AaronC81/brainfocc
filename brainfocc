@@ -112,7 +112,7 @@ class Interpreter
           forked_interpreter.run
         end
 
-        @pid = 0
+        @memory[@memory_ptr] = 0
       when '&'
         # == Channel select ==
         # Switches to the using the channel number at the current data byte.
